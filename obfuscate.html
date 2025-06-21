@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Lua Obfuscator</title>
+  <title>Roblox Lua Obfuscator</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js"></script>
   <style>
@@ -34,7 +34,7 @@
 </head>
 <body class="bg-gray-900 text-white min-h-screen p-6">
   <div class="container mx-auto max-w-6xl">
-    <h1 class="text-3xl font-bold text-center mb-6 animate-slide-in">Lua Obfuscator</h1>
+    <h1 class="text-3xl font-bold text-center mb-6 animate-slide-in">Roblox Lua Obfuscator</h1>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-4">
       <div class="card animate-slide-in" style="animation-delay: 0.1s;">
         <h2 class="text-xl font-semibold mb-2">Input Lua Code</h2>
@@ -56,6 +56,7 @@
   </div>
 
   <script>
+    // Initialize Ace Editors
     const inputEditor = ace.edit("inputEditor");
     inputEditor.setTheme("ace/theme/monokai");
     inputEditor.session.setMode("ace/mode/lua");
@@ -66,7 +67,7 @@
     outputEditor.session.setMode("ace/mode/lua");
     outputEditor.setOptions({ fontSize: "14px", readOnly: true });
 
-    // 1. XOR encrypt strings with key 0x10
+    // XOR encrypt string with key 0x10 (JavaScript side)
     function xorEncryptString(str) {
       let result = "";
       for (let i = 0; i < str.length; i++) {
@@ -75,73 +76,40 @@
       return result;
     }
 
-    // 2. Split string into char array form {'h','e','l','l','o'}
+    // Split string into char array {'a','b','c'}
     function splitStringToCharArray(str) {
-      const chars = [];
-      for (let ch of str) {
-        chars.push(`'${ch}'`);
-      }
-      return `{${chars.join(",")}}`;
+      return `{${[...str].map(c => `'${c}'`).join(",")}}`;
     }
 
-    // 3. Hex escape string e.g. \x41\x42\x43
-    function hexEscapeString(str) {
-      let result = "";
-      for (let i = 0; i < str.length; i++) {
-        result += "\\x" + str.charCodeAt(i).toString(16).padStart(2, '0');
-      }
-      return result;
-    }
-
-    // 4. Generate junk math functions to add noise
-    function generateJunkFunctions(count = 3) {
-      const junkFuncs = [];
-      for (let i = 0; i < count; i++) {
-        const name = "_" + Math.random().toString(36).substring(2, 8);
-        const code = `local ${name} = function(x, y) return x * y + ${Math.floor(Math.random() * 100)} end\n`;
-        junkFuncs.push(code);
-      }
-      return junkFuncs.join("\n");
-    }
-
-    // 5. Wrap code inside a control flow function and immediately invoke it
-    function wrapInControlFlow(code) {
-      const fnName = "_" + Math.random().toString(36).substring(2, 8);
-      return `local ${fnName} = function()\n${code.split("\n").map(line => "  " + line).join("\n")}\nend\n${fnName}()\n`;
-    }
-
-    // 6. Wrap code inside loadstring + string with XOR encryption
-    function wrapInLoadstringXor(code) {
-      // XOR encrypt whole code
+    // Wrap code in loadstring with XOR encrypted and table.concat string for Roblox Lua
+    function wrapInLoadstringXorRoblox(code) {
       const encrypted = xorEncryptString(code);
-      // hex-escape the encrypted string
-      const hexed = hexEscapeString(encrypted);
-      return `loadstring("${hexed}")()`;
+      const charArray = splitStringToCharArray(encrypted);
+      return `
+local encrypted_chars = ${charArray}
+local decrypted = {}
+for i = 1, #encrypted_chars do
+  decrypted[i] = string.char(bit32.bxor(string.byte(encrypted_chars[i]), 0x10))
+end
+local decrypted_str = table.concat(decrypted)
+loadstring(decrypted_str)()
+`.trim();
     }
 
-    // Main obfuscation function applying all methods in steps
-    function obfuscate(code) {
-      // Step 1: Wrap original code inside loadstring with XOR+hex escaping
-      let obfuscated = wrapInLoadstringXor(code);
+    // Main obfuscation function for Roblox Lua
+    function obfuscateRoblox(code) {
+      // Wrap original code inside XOR + table.concat loadstring loader
+      let obfuscated = wrapInLoadstringXorRoblox(code);
 
-      // Step 2: Wrap the loadstring inside a control flow function wrapper
-      obfuscated = wrapInControlFlow(obfuscated);
+      // Wrap in a dummy function to confuse analysis
+      const fnName = "_" + Math.random().toString(36).slice(2, 8);
+      obfuscated = `local ${fnName} = function()\n${obfuscated}\nend\n${fnName}()\n`;
 
-      // Step 3: Add junk functions for noise
-      obfuscated = generateJunkFunctions(4) + "\n" + obfuscated;
-
-      // Step 4: Split some strings inside loadstring call into char arrays + table.concat
-      // (This step modifies the obfuscated code to replace some strings with char arrays)
-      // We'll find all strings inside double quotes and randomly choose to split some
-      
-      obfuscated = obfuscated.replace(/"([^"]{3,})"/g, (match, str) => {
-        // 50% chance to split string
-        if (Math.random() < 0.5) {
-          // split string into char array + table.concat
-          return `table.concat(${splitStringToCharArray(str)})`;
-        }
-        return match;
-      });
+      // Add a simple junk function (safe in Roblox)
+      obfuscated = `
+local junk = function(x,y) return x + y end
+${obfuscated}
+`;
 
       return obfuscated;
     }
@@ -153,7 +121,7 @@
         alert("Please enter Lua code to obfuscate.");
         return;
       }
-      const obfuscatedCode = obfuscate(inputCode);
+      const obfuscatedCode = obfuscateRoblox(inputCode);
       outputEditor.setValue(obfuscatedCode, -1);
       document.getElementById("downloadBtn").disabled = false;
     });

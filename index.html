@@ -1,44 +1,44 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Advanced Lua Deobfuscator</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js"></script>
-<style>
-  @keyframes slideIn {
-    from { transform: translateY(20px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
-  }
-  .animate-slide-in {
-    animation: slideIn 0.5s ease-out forwards;
-  }
-  .editor {
-    height: 300px;
-    width: 100%;
-    border-radius: 0.5rem;
-    border: 1px solid #4b5563;
-    background-color: #1f2937;
-    color: #d1d5db;
-  }
-  .log-entry {
-    transition: all 0.3s ease;
-  }
-  .log-entry:hover {
-    background-color: #374151;
-  }
-  .card {
-    background-color: #2d3748;
-    border-radius: 0.5rem;
-    padding: 1rem;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lua Deobfuscator Enhanced</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js"></script>
+  <style>
+    @keyframes slideIn {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .animate-slide-in {
+      animation: slideIn 0.5s ease-out forwards;
+    }
+    .editor {
+      height: 300px;
+      width: 100%;
+      border-radius: 0.5rem;
+      border: 1px solid #4b5563;
+      background-color: #1f2937;
+      color: #d1d5db;
+    }
+    .log-entry {
+      transition: all 0.3s ease;
+    }
+    .log-entry:hover {
+      background-color: #374151;
+    }
+    .card {
+      background-color: #2d3748;
+      border-radius: 0.5rem;
+      padding: 1rem;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+  </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen p-6">
   <div class="container mx-auto max-w-6xl">
-    <h1 class="text-3xl font-bold text-center mb-6 animate-slide-in">Advanced Lua Deobfuscator</h1>
+    <h1 class="text-3xl font-bold text-center mb-6 animate-slide-in">Lua Deobfuscator Enhanced</h1>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
       <!-- Input Section -->
       <div class="card animate-slide-in" style="animation-delay: 0.1s;">
@@ -79,13 +79,12 @@
               <li>\### - Octal escape sequences</li>
               <li>string.char() - Character code functions</li>
               <li>XOR encoded data</li>
-              <li>Caesar cipher (+5 shift) encoded strings (with % for .)</li>
-              <li>String reversal & rearrangement heuristics</li>
-              <li>Base64 encoded strings</li>
-              <li>URL char substitution fixes (8 → :, % → . , 0 → /)</li>
+              <li>String encryption XOR key 0x10</li>
+              <li>String splitting + table.concat</li>
+              <li>Dynamic code execution via loadstring/load</li>
+              <li>Junk code detection and removal</li>
+              <li>Control flow wrapper unwrapping</li>
             </ul>
-            <p class="mt-2"><strong>Error Handling:</strong></p>
-            <p>The tool includes comprehensive error handling for malformed payloads, invalid hex sequences, and bytecode interpretation issues.</p>
           </div>
         </div>
       </div>
@@ -104,174 +103,133 @@
     outputEditor.session.setMode("ace/mode/lua");
     outputEditor.setOptions({ fontSize: "14px", readOnly: true });
 
-    // XOR decoding function
-    function xorDecode(input, key) {
-      let processedInput = input.replace(/\\(\d{1,3})/g, (match, num) => String.fromCharCode(parseInt(num)));
-      return processedInput.split('').map(char => {
-        const charCode = char.charCodeAt(0);
-        const xoredCode = charCode ^ key;
-        return String.fromCharCode(xoredCode);
-      }).join('');
+    // Utility: Decode escaped sequences to raw string
+    function decodeEscapes(str) {
+      return str
+        .replace(/\\x([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+        .replace(/\\(\d{1,3})/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)));
     }
 
-    // Find XOR key by brute force
-    function findXorKey(input) {
-      const validTextPatterns = [/^http/, /\b\w{3,}\b/];
-      let bestKey = null;
-      let bestResult = "";
-
-      for (let key = 0; key <= 255; key++) {
-        const decoded = xorDecode(input, key);
-        if (validTextPatterns.some(pattern => pattern.test(decoded))) {
-          bestKey = key;
-          bestResult = decoded;
-          break;
+    // XOR decode with key 0x10
+    function decodeXorKey16(code, logs) {
+      const xorRegex = /"(\\x[0-9A-Fa-f]{2}|\\\d{1,3}|[^"\\])*"/g;
+      return code.replace(xorRegex, (match) => {
+        let str = match.slice(1, -1);
+        str = decodeEscapes(str);
+        let decoded = '';
+        for (let i = 0; i < str.length; i++) {
+          decoded += String.fromCharCode(str.charCodeAt(i) ^ 16);
         }
-      }
-      return { key: bestKey, result: bestResult || "No valid key found" };
+        logs.push(`XOR-decoded string with key 0x10: "${decoded}"`);
+        return `"${decoded}"`;
+      });
     }
 
-    // Caesar decode (shift letters/digits backward)
-    function caesarDecode(str, shift) {
-      return str.split('').map(ch => {
-        const code = ch.charCodeAt(0);
-        if (code >= 65 && code <= 90) {
-          return String.fromCharCode((code - 65 - shift + 26) % 26 + 65);
-        }
-        if (code >= 97 && code <= 122) {
-          return String.fromCharCode((code - 97 - shift + 26) % 26 + 97);
-        }
-        if (code >= 48 && code <= 57) {
-          return String.fromCharCode((code - 48 - shift + 10) % 10 + 48);
-        }
-        return ch;
-      }).join('').replace(/%/g, '.');
+    // Reassemble string arrays e.g. {'h','t','t','p'} + table.concat(...)
+    function decodeStringArrayConcat(code, logs) {
+      // Pattern: local var = {'h','t','t','p'}; var = table.concat(var)
+      const arrRegex = /(\w+)\s*=\s*\{((?:'[^']',?\s*)+)\};?\s*\1\s*=\s*table\.concat\(\s*\1\s*\)/g;
+      let replaced = code.replace(arrRegex, (match, varName, chars) => {
+        const arr = chars.match(/'([^'])'/g).map(s => s[1]);
+        const str = arr.join('');
+        logs.push(`Reassembled string array '${varName}' to "${str}"`);
+        return `${varName} = "${str}"`;
+      });
+
+      // Inline concat: table.concat({'h','t','t','p'})
+      const inlineConcatRegex = /table\.concat\(\s*\{((?:'[^']',?\s*)+)\}\s*\)/g;
+      replaced = replaced.replace(inlineConcatRegex, (match, chars) => {
+        const arr = chars.match(/'([^'])'/g).map(s => s[1]);
+        const str = arr.join('');
+        logs.push(`Reassembled inline table.concat string to "${str}"`);
+        return `"${str}"`;
+      });
+
+      return replaced;
     }
 
-    // Reverse string helper
-    function reverseString(str) {
-      return str.split('').reverse().join('');
+    // Decode loadstring/load dynamic code execution
+    function decodeLoadstring(code, logs) {
+      const loadRegex = /(loadstring|load)\(\s*"(.*?)"\s*\)/gs;
+      return code.replace(loadRegex, (match, func, payload) => {
+        let decodedPayload = decodeEscapes(payload)
+          .replace(/\\n/g, '\n')
+          .replace(/\\"/g, '"')
+          .replace(/\\\\/g, '\\');
+
+        logs.push(`Decoded ${func} string payload:\n${decodedPayload.trim().slice(0, 100)}${decodedPayload.length > 100 ? '...' : ''}`);
+
+        return `-- Decoded dynamic code start --\n${decodedPayload}\n-- Decoded dynamic code end --`;
+      });
     }
 
-    // Base64 decode helper
-    function base64Decode(str) {
-      try {
-        return atob(str);
-      } catch {
-        return null;
+    // Remove junk code patterns
+    function removeJunkCode(code, logs) {
+      const junkFuncRegex = /local\s+_\w+\s*=\s*function\s*\([^)]*\)[\s\S]*?end\s*/g;
+      const cleaned = code.replace(junkFuncRegex, (match) => {
+        logs.push("Removed junk math function");
+        return '';
+      });
+
+      if (/if\s+_\w+\s*>\s*40/.test(cleaned)) {
+        logs.push("Detected always-true conditional (ignored)");
       }
+
+      if (/while\s+_\w+\s*<\s*50\s*do/.test(cleaned)) {
+        logs.push("Detected unused loop (ignored)");
+      }
+
+      return cleaned;
     }
 
-    // URL char fixes
-    function fixUrlChars(str) {
-      return str.replace(/8/g, ':').replace(/\%/g, '.').replace(/0/g, '/');
+    // Unwrap trivial control flow wrappers
+    function unwrapControlFlow(code, logs) {
+      const wrapperRegex = /local\s+_\w+\s*=\s*function\s*\(\)\s*([\s\S]+?)\s*end;\s*_\w+\(\)/g;
+      let count = 0;
+      return code.replace(wrapperRegex, (match, innerCode) => {
+        count++;
+        logs.push(`Unwrapped control flow wrapper function #${count}`);
+        return innerCode.trim();
+      });
     }
 
-    // Rearrange chunks heuristics
-    function rearrangeChunks(str) {
-      let chunks = str.split(/[.\s]+/);
-      if (chunks.length > 2 && chunks[0].length < chunks[chunks.length - 1].length) {
-        chunks = chunks.reverse();
-      }
-      return chunks.join('.');
-    }
-
-    // Main enhanced deobfuscate function
-    function enhancedDeobfuscate(code) {
-      let logs = [];
-      let decoded = code;
-
-      // Fix URL char substitutions if suspicious chars found
-      if (/[8%\.]/.test(decoded)) {
-        logs.push("Detected suspicious URL char substitutions, fixing...");
-        decoded = fixUrlChars(decoded);
-        logs.push("Fixed URL chars to: " + decoded);
-      }
-
-      // Rearrange chunks if many dots
-      if ((decoded.match(/\./g) || []).length > 2) {
-        const rearranged = rearrangeChunks(decoded);
-        if (rearranged !== decoded) {
-          logs.push("Rearranged chunks from: " + decoded + " to: " + rearranged);
-          decoded = rearranged;
-        }
-      }
-
-      // Reverse string if non-alphanumeric chars detected
-      if (/[^a-zA-Z0-9.:/_%-]/.test(decoded) && /^[\w\.\:\/%\-]+$/.test(reverseString(decoded))) {
-        const reversed = reverseString(decoded);
-        logs.push("Detected possible reversed string, reversed: " + reversed);
-        decoded = reversed;
-      }
-
-      // Base64 decode if looks valid base64
-      if (/^[A-Za-z0-9+/=]+$/.test(decoded) && decoded.length % 4 === 0) {
-        const b64 = base64Decode(decoded);
-        if (b64) {
-          logs.push("Detected base64 string, decoded to: " + b64);
-          decoded = b64;
-        }
-      }
-
-      return { decoded, logs };
-    }
-
-    // Your existing deobfuscation core
+    // Main deobfuscate function
     function deobfuscate(code) {
       const logs = [];
       let deobfuscated = code;
 
       try {
-        if (deobfuscated.startsWith("LOL!")) {
-          logs.push("Detected LOL! pattern, initiating custom payload decoding");
-          deobfuscated = deobfuscated.replace(/LOL!(\w+)/, (match, payload) => {
-            return `function decoded() return "${payload}" end`;
-          });
-        }
-
-        deobfuscated = deobfuscated.replace(/\\x([0-9A-Fa-f]{2})/g, (match, hex) => {
-          logs.push(`Decoded hex sequence \\x${hex} to ${String.fromCharCode(parseInt(hex, 16))}`);
-          return String.fromCharCode(parseInt(hex, 16));
+        // Basic hex & octal decoding
+        deobfuscated = deobfuscated.replace(/\\x([0-9A-Fa-f]{2})/g, (m, h) => {
+          logs.push(`Decoded hex \\x${h}`);
+          return String.fromCharCode(parseInt(h, 16));
+        });
+        deobfuscated = deobfuscated.replace(/\\(\d{1,3})/g, (m, o) => {
+          logs.push(`Decoded octal \\${o}`);
+          return String.fromCharCode(parseInt(o, 8));
         });
 
-        deobfuscated = deobfuscated.replace(/\\([0-7]{1,3})/g, (match, oct) => {
-          logs.push(`Decoded octal sequence \\${oct} to ${String.fromCharCode(parseInt(oct, 8))}`);
-          return String.fromCharCode(parseInt(oct, 8));
-        });
-
-        deobfuscated = deobfuscated.replace(/string\.char\(([\d,\s]+)\)/g, (match, nums) => {
+        // string.char decoding (basic)
+        deobfuscated = deobfuscated.replace(/string\.char\(([\d,\s]+)\)/g, (m, nums) => {
           const chars = nums.split(',').map(n => String.fromCharCode(parseInt(n.trim()))).join('');
-          logs.push(`Decoded string.char(...) to "${chars}"`);
-          return chars;
+          logs.push(`Decoded string.char to "${chars}"`);
+          return `"${chars}"`;
         });
 
-        if (deobfuscated.includes("XOR:")) {
-          logs.push("Detected XOR encoded data, attempting to find key");
-          const xorMatch = deobfuscated.match(/XOR:([\w\\]+)/);
-          if (xorMatch) {
-            const xorData = xorMatch[1];
-            const { key, result } = findXorKey(xorData);
-            if (key !== null) {
-              logs.push(`Found XOR key ${key}, decoded "${xorData}" to "${result}"`);
-              deobfuscated = deobfuscated.replace(/XOR:[\w\\]+/, result);
-            } else {
-              logs.push("No valid XOR key found");
-            }
-          }
-        }
+        // Remove junk code
+        deobfuscated = removeJunkCode(deobfuscated, logs);
 
-        // Detect Caesar encoded strings (heuristic example)
-        const caesarIndicators = ["mnuux", "numjw", "tqxxj"];
-        if (caesarIndicators.some(ind => deobfuscated.includes(ind))) {
-          logs.push("Detected Caesar +5 encoded string, decoding");
-          deobfuscated = caesarDecode(deobfuscated, 5);
-          logs.push("Caesar decoding applied (+5 shift, %→.)");
-        }
+        // Unwrap control flow wrappers
+        deobfuscated = unwrapControlFlow(deobfuscated, logs);
 
-        // Run enhanced decoding step
-        const enhanced = enhancedDeobfuscate(deobfuscated);
-        logs.push(...enhanced.logs);
-        deobfuscated = enhanced.decoded;
+        // XOR decode key=0x10
+        deobfuscated = decodeXorKey16(deobfuscated, logs);
+
+        // Reassemble string arrays + table.concat
+        deobfuscated = decodeStringArrayConcat(deobfuscated, logs);
+
+        // Decode loadstring/load dynamic code
+        deobfuscated = decodeLoadstring(deobfuscated, logs);
 
         // Extract URLs
         const urlRegex = /https?:\/\/[^\s'"]+/g;
@@ -292,24 +250,28 @@
         return { deobfuscated, logs, urls };
       } catch (e) {
         logs.push(`Error during deobfuscation: ${e.message}`);
+        return { deobfuscated, logs, urls: [] };
       }
-      return { deobfuscated, logs, urls: [] };
     }
 
     // Update logs UI
     function updateLogs(logs) {
       const logsDiv = document.getElementById("logs");
-      logsDiv.innerHTML = logs.length ? logs.map(log => `<div class="log-entry p-1">${log}</div>`).join("") : "<div class='p-1 text-gray-500'>No decoding steps yet. Enter a payload and click decode.</div>";
+      logsDiv.innerHTML = logs.length
+        ? logs.map(log => `<div class="log-entry p-1">${log}</div>`).join("")
+        : "<div class='p-1 text-gray-500'>No decoding steps yet. Enter a payload and click decode.</div>";
       logsDiv.scrollTop = logsDiv.scrollHeight;
     }
 
     // Update URLs UI
     function updateUrls(urls) {
       const urlList = document.getElementById("urlList");
-      urlList.innerHTML = urls.length ? urls.map(url => `<div class="p-1"><a href="${url}" target="_blank" class="text-blue-400 hover:underline">${url}</a></div>`).join("") : "<div class='p-1 text-gray-500'>No URLs extracted.</div>";
+      urlList.innerHTML = urls.length
+        ? urls.map(url => `<div class="p-1"><a href="${url}" target="_blank" class="text-blue-400 hover:underline">${url}</a></div>`).join("")
+        : "<div class='p-1 text-gray-500'>No URLs extracted.</div>";
     }
 
-    // Button handler
+    // Button click handler
     document.getElementById("decodeBtn").addEventListener("click", () => {
       const inputCode = inputEditor.getValue().trim();
       if (!inputCode) {
@@ -317,7 +279,6 @@
         updateUrls([]);
         return;
       }
-
       const { deobfuscated, logs, urls } = deobfuscate(inputCode);
       outputEditor.setValue(deobfuscated, -1);
       updateLogs(logs);

@@ -11,9 +11,7 @@
       from { transform: translateY(20px); opacity: 0; }
       to { transform: translateY(0); opacity: 1; }
     }
-    .animate-slide-in {
-      animation: slideIn 0.5s ease-out forwards;
-    }
+    .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
     .editor {
       height: 300px;
       width: 100%;
@@ -34,13 +32,21 @@
       padding: 1rem;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
+    #warningBox {
+      background-color: #b91c1c;
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      margin-top: 0.5rem;
+      font-weight: bold;
+      display: none;
+    }
   </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen p-6">
   <div class="container mx-auto max-w-6xl">
     <h1 class="text-3xl font-bold text-center mb-6 animate-slide-in">Lua Deobfuscator Enhanced</h1>
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-      <!-- Input Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-4">
       <div class="card animate-slide-in" style="animation-delay: 0.1s;">
         <h2 class="text-xl font-semibold mb-2">Input Payload</h2>
         <p class="text-gray-400 mb-4 text-sm">Paste your obfuscated Lua script or encoded payload here</p>
@@ -48,15 +54,17 @@
         <button id="decodeBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg mt-4 w-full transition duration-300 flex items-center justify-center">
           <span class="mr-2">🔍</span> Decode Payload
         </button>
+        <button id="downloadBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg mt-4 w-full transition duration-300 flex items-center justify-center" disabled>
+          💾 Download Deobfuscated Code
+        </button>
+        <div id="warningBox"></div>
       </div>
-      <!-- Output Section -->
       <div class="card animate-slide-in" style="animation-delay: 0.2s;">
         <h2 class="text-xl font-semibold mb-2">Decoded Output</h2>
         <p class="text-gray-400 mb-4 text-sm">Reconstructed Lua script will appear here...</p>
         <div id="outputEditor" class="editor"></div>
       </div>
     </div>
-    <!-- Decoding Process Section -->
     <div class="card animate-slide-in" style="animation-delay: 0.3s;">
       <h2 class="text-xl font-semibold mb-2">Decoding Process</h2>
       <p class="text-gray-400 mb-4 text-sm">Step-by-step breakdown of the decoding process</p>
@@ -71,19 +79,19 @@
         </div>
         <div>
           <h3 class="text-md font-medium mb-2">Tool Information</h3>
-          <div class="bg-gray-800 p-2 rounded-lg h-32 overflow-y-auto text-sm text-gray-400">
-            <p><strong>Supported Patterns:</strong></p>
-            <ul class="list-disc list-inside text-sm">
-              <li>LOL! ... - Custom encoded payloads</li>
-              <li>\x## - Hexadecimal escape sequences</li>
-              <li>\### - Octal escape sequences</li>
-              <li>string.char() - Character code functions</li>
-              <li>XOR encoded data</li>
-              <li>String encryption XOR key 0x10</li>
-              <li>String splitting + table.concat</li>
-              <li>Dynamic code execution via loadstring/load</li>
-              <li>Junk code detection and removal</li>
-              <li>Control flow wrapper unwrapping</li>
+          <div class="bg-gray-800 p-2 rounded-lg h-64 overflow-y-auto text-sm text-gray-400">
+            <p><strong>Supported Patterns & How They’re Decoded:</strong></p>
+            <ul class="list-disc list-inside space-y-1">
+              <li><strong>\x## / \###:</strong> Hex & octal escape decoding</li>
+              <li><strong>string.char(...):</strong> Converted to plain strings</li>
+              <li><strong>XOR key 0x10:</strong> XOR-decoded payloads</li>
+              <li><strong>table.concat({}):</strong> Reassembled strings</li>
+              <li><strong>Base64:</strong> Decoded where detected</li>
+              <li><strong>loadstring():</strong> Decoded and unwrapped (recursive)</li>
+              <li><strong>Junk code:</strong> Removed dummy functions</li>
+              <li><strong>Control flow wrappers:</strong> Unwrapped</li>
+              <li><strong>URLs:</strong> Auto-extracted from payload</li>
+              <li><strong>Malicious pattern detection:</strong> Discord webhooks & suspicious HTTPGet</li>
             </ul>
           </div>
         </div>
@@ -92,7 +100,6 @@
   </div>
 
   <script>
-    // Initialize ACE editors
     const inputEditor = ace.edit("inputEditor");
     inputEditor.setTheme("ace/theme/monokai");
     inputEditor.session.setMode("ace/mode/lua");
@@ -103,14 +110,12 @@
     outputEditor.session.setMode("ace/mode/lua");
     outputEditor.setOptions({ fontSize: "14px", readOnly: true });
 
-    // Utility: Decode escaped sequences to raw string
     function decodeEscapes(str) {
       return str
         .replace(/\\x([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
         .replace(/\\(\d{1,3})/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)));
     }
 
-    // XOR decode with key 0x10
     function decodeXorKey16(code, logs) {
       const xorRegex = /"(\\x[0-9A-Fa-f]{2}|\\\d{1,3}|[^"\\])*"/g;
       return code.replace(xorRegex, (match) => {
@@ -125,117 +130,125 @@
       });
     }
 
-    // Reassemble string arrays e.g. {'h','t','t','p'} + table.concat(...)
     function decodeStringArrayConcat(code, logs) {
-      // Pattern: local var = {'h','t','t','p'}; var = table.concat(var)
       const arrRegex = /(\w+)\s*=\s*\{((?:'[^']',?\s*)+)\};?\s*\1\s*=\s*table\.concat\(\s*\1\s*\)/g;
       let replaced = code.replace(arrRegex, (match, varName, chars) => {
         const arr = chars.match(/'([^'])'/g).map(s => s[1]);
         const str = arr.join('');
-        logs.push(`Reassembled string array '${varName}' to "${str}"`);
+        logs.push(`Reassembled array '${varName}' to "${str}"`);
         return `${varName} = "${str}"`;
       });
 
-      // Inline concat: table.concat({'h','t','t','p'})
       const inlineConcatRegex = /table\.concat\(\s*\{((?:'[^']',?\s*)+)\}\s*\)/g;
       replaced = replaced.replace(inlineConcatRegex, (match, chars) => {
         const arr = chars.match(/'([^'])'/g).map(s => s[1]);
         const str = arr.join('');
-        logs.push(`Reassembled inline table.concat string to "${str}"`);
+        logs.push(`Flattened table.concat to "${str}"`);
         return `"${str}"`;
       });
 
       return replaced;
     }
 
-    // Decode loadstring/load dynamic code execution
     function decodeLoadstring(code, logs) {
-      const loadRegex = /(loadstring|load)\(\s*"(.*?)"\s*\)/gs;
-      return code.replace(loadRegex, (match, func, payload) => {
-        let decodedPayload = decodeEscapes(payload)
-          .replace(/\\n/g, '\n')
-          .replace(/\\"/g, '"')
-          .replace(/\\\\/g, '\\');
+      // Recursively decode nested loadstring/load calls
+      let depth = 0;
+      const maxDepth = 10; // avoid infinite loops
+      let currentCode = code;
 
-        logs.push(`Decoded ${func} string payload:\n${decodedPayload.trim().slice(0, 100)}${decodedPayload.length > 100 ? '...' : ''}`);
-
-        return `-- Decoded dynamic code start --\n${decodedPayload}\n-- Decoded dynamic code end --`;
-      });
+      while (depth < maxDepth) {
+        let changed = false;
+        currentCode = currentCode.replace(/(loadstring|load)\(\s*"(.*?)"\s*\)/gs, (match, func, payload) => {
+          let decodedPayload = decodeEscapes(payload)
+            .replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+          logs.push(`Decoded ${func} payload at recursion depth ${depth + 1}`);
+          changed = true;
+          return `-- Decoded dynamic code start --\n${decodedPayload}\n-- Decoded dynamic code end --`;
+        });
+        if (!changed) break;
+        depth++;
+      }
+      if (depth === maxDepth) logs.push("Max recursion depth reached for loadstring decoding");
+      return currentCode;
     }
 
-    // Remove junk code patterns
     function removeJunkCode(code, logs) {
       const junkFuncRegex = /local\s+_\w+\s*=\s*function\s*\([^)]*\)[\s\S]*?end\s*/g;
-      const cleaned = code.replace(junkFuncRegex, (match) => {
+      const cleaned = code.replace(junkFuncRegex, () => {
         logs.push("Removed junk math function");
         return '';
       });
-
-      if (/if\s+_\w+\s*>\s*40/.test(cleaned)) {
-        logs.push("Detected always-true conditional (ignored)");
-      }
-
-      if (/while\s+_\w+\s*<\s*50\s*do/.test(cleaned)) {
-        logs.push("Detected unused loop (ignored)");
-      }
-
       return cleaned;
     }
 
-    // Unwrap trivial control flow wrappers
     function unwrapControlFlow(code, logs) {
       const wrapperRegex = /local\s+_\w+\s*=\s*function\s*\(\)\s*([\s\S]+?)\s*end;\s*_\w+\(\)/g;
       let count = 0;
-      return code.replace(wrapperRegex, (match, innerCode) => {
+      return code.replace(wrapperRegex, (_, innerCode) => {
         count++;
         logs.push(`Unwrapped control flow wrapper function #${count}`);
         return innerCode.trim();
       });
     }
 
-    // Main deobfuscate function
+    function base64Decode(code, logs) {
+      const b64Regex = /"([A-Za-z0-9+/=]{20,})"/g;
+      return code.replace(b64Regex, (match, b64) => {
+        try {
+          const decoded = atob(b64);
+          logs.push(`Base64-decoded string snippet: "${decoded.slice(0, 50)}..."`);
+          return `"${decoded}"`;
+        } catch {
+          return match;
+        }
+      });
+    }
+
+    // Malicious pattern detection
+    function detectMaliciousPatterns(code) {
+      const warnings = [];
+      // Detect Discord webhook URLs
+      const webhookRegex = /https:\/\/discord(?:app)?\.com\/api\/webhooks\/\d+\/[A-Za-z0-9_-]+/g;
+      if (webhookRegex.test(code)) warnings.push("⚠️ Discord webhook URL detected");
+
+      // Detect suspicious HttpGet or HttpRequest from suspicious URLs
+      const suspiciousHttpGet = /(game|syn|http)\:Http(Get|Request).*(pastebin\.com|hastebin\.com|ghostbin\.com|anonfiles\.com)/gi;
+      if (suspiciousHttpGet.test(code)) warnings.push("⚠️ Suspicious HttpGet/HttpRequest from pastebin-like URL detected");
+
+      return warnings;
+    }
+
     function deobfuscate(code) {
       const logs = [];
       let deobfuscated = code;
 
       try {
-        // Basic hex & octal decoding
         deobfuscated = deobfuscated.replace(/\\x([0-9A-Fa-f]{2})/g, (m, h) => {
-          logs.push(`Decoded hex \\x${h}`);
+          logs.push(`Hex \\x${h} → '${String.fromCharCode(parseInt(h, 16))}'`);
           return String.fromCharCode(parseInt(h, 16));
         });
+
         deobfuscated = deobfuscated.replace(/\\(\d{1,3})/g, (m, o) => {
-          logs.push(`Decoded octal \\${o}`);
+          logs.push(`Octal \\${o} → '${String.fromCharCode(parseInt(o, 8))}'`);
           return String.fromCharCode(parseInt(o, 8));
         });
 
-        // string.char decoding (basic)
         deobfuscated = deobfuscated.replace(/string\.char\(([\d,\s]+)\)/g, (m, nums) => {
           const chars = nums.split(',').map(n => String.fromCharCode(parseInt(n.trim()))).join('');
-          logs.push(`Decoded string.char to "${chars}"`);
+          logs.push(`string.char → "${chars}"`);
           return `"${chars}"`;
         });
 
-        // Remove junk code
         deobfuscated = removeJunkCode(deobfuscated, logs);
-
-        // Unwrap control flow wrappers
         deobfuscated = unwrapControlFlow(deobfuscated, logs);
-
-        // XOR decode key=0x10
         deobfuscated = decodeXorKey16(deobfuscated, logs);
-
-        // Reassemble string arrays + table.concat
         deobfuscated = decodeStringArrayConcat(deobfuscated, logs);
-
-        // Decode loadstring/load dynamic code
         deobfuscated = decodeLoadstring(deobfuscated, logs);
+        deobfuscated = base64Decode(deobfuscated, logs);
 
-        // Extract URLs
         const urlRegex = /https?:\/\/[^\s'"]+/g;
         const urls = deobfuscated.match(urlRegex) || [];
 
-        // Basic formatting
         const lines = deobfuscated.split("\n");
         let indentLevel = 0;
         deobfuscated = lines.map(line => {
@@ -245,44 +258,72 @@
           if (line.match(/do$|then$|function/)) indentLevel++;
           return indented;
         }).join("\n");
-        logs.push("Applied basic code formatting");
+
+        logs.push("Formatted code structure");
 
         return { deobfuscated, logs, urls };
       } catch (e) {
-        logs.push(`Error during deobfuscation: ${e.message}`);
+        logs.push(`Error: ${e.message}`);
         return { deobfuscated, logs, urls: [] };
       }
     }
 
-    // Update logs UI
     function updateLogs(logs) {
       const logsDiv = document.getElementById("logs");
       logsDiv.innerHTML = logs.length
         ? logs.map(log => `<div class="log-entry p-1">${log}</div>`).join("")
-        : "<div class='p-1 text-gray-500'>No decoding steps yet. Enter a payload and click decode.</div>";
+        : "<div class='p-1 text-gray-500'>No logs</div>";
       logsDiv.scrollTop = logsDiv.scrollHeight;
     }
 
-    // Update URLs UI
     function updateUrls(urls) {
       const urlList = document.getElementById("urlList");
       urlList.innerHTML = urls.length
         ? urls.map(url => `<div class="p-1"><a href="${url}" target="_blank" class="text-blue-400 hover:underline">${url}</a></div>`).join("")
-        : "<div class='p-1 text-gray-500'>No URLs extracted.</div>";
+        : "<div class='p-1 text-gray-500'>No URLs found</div>";
     }
 
-    // Button click handler
+    function updateWarnings(warnings) {
+      const warningBox = document.getElementById("warningBox");
+      if (warnings.length === 0) {
+        warningBox.style.display = "none";
+        warningBox.textContent = "";
+      } else {
+        warningBox.style.display = "block";
+        warningBox.innerHTML = warnings.map(w => `<div>${w}</div>`).join("");
+      }
+    }
+
     document.getElementById("decodeBtn").addEventListener("click", () => {
       const inputCode = inputEditor.getValue().trim();
       if (!inputCode) {
         updateLogs(["No input code provided"]);
         updateUrls([]);
+        updateWarnings([]);
+        document.getElementById("downloadBtn").disabled = true;
+        outputEditor.setValue("", -1);
         return;
       }
       const { deobfuscated, logs, urls } = deobfuscate(inputCode);
       outputEditor.setValue(deobfuscated, -1);
       updateLogs(logs);
       updateUrls(urls);
+
+      const warnings = detectMaliciousPatterns(deobfuscated);
+      updateWarnings(warnings);
+
+      document.getElementById("downloadBtn").disabled = false;
+    });
+
+    document.getElementById("downloadBtn").addEventListener("click", () => {
+      const content = outputEditor.getValue();
+      if (!content) return;
+      const blob = new Blob([content], { type: 'text/plain' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'deobfuscated.lua';
+      a.click();
+      URL.revokeObjectURL(a.href);
     });
   </script>
 </body>

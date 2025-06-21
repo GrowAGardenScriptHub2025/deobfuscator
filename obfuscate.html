@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lua Obfuscator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js"></script>
+  <style>
+    @keyframes slideIn {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .animate-slide-in { animation: slideIn 0.5s ease-out forwards; }
+    .editor {
+      height: 300px;
+      width: 100%;
+      border-radius: 0.5rem;
+      border: 1px solid #4b5563;
+      background-color: #1f2937;
+      color: #d1d5db;
+      font-family: monospace;
+    }
+    .card {
+      background-color: #2d3748;
+      border-radius: 0.5rem;
+      padding: 1rem;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    button {
+      transition: background-color 0.3s ease;
+    }
+  </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen p-6">
+  <div class="container mx-auto max-w-6xl">
+    <h1 class="text-3xl font-bold text-center mb-6 animate-slide-in">Lua Obfuscator</h1>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-4">
+      <div class="card animate-slide-in" style="animation-delay: 0.1s;">
+        <h2 class="text-xl font-semibold mb-2">Input Lua Code</h2>
+        <p class="text-gray-400 mb-4 text-sm">Paste your clean Lua code here</p>
+        <div id="inputEditor" class="editor"></div>
+        <button id="obfuscateBtn" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg mt-4 w-full flex items-center justify-center">
+          🌀 Obfuscate Code
+        </button>
+      </div>
+      <div class="card animate-slide-in" style="animation-delay: 0.2s;">
+        <h2 class="text-xl font-semibold mb-2">Obfuscated Output</h2>
+        <p class="text-gray-400 mb-4 text-sm">Your obfuscated Lua script will appear here</p>
+        <div id="outputEditor" class="editor"></div>
+        <button id="downloadBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg mt-4 w-full flex items-center justify-center" disabled>
+          💾 Download Obfuscated Code
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const inputEditor = ace.edit("inputEditor");
+    inputEditor.setTheme("ace/theme/monokai");
+    inputEditor.session.setMode("ace/mode/lua");
+    inputEditor.setOptions({ fontSize: "14px" });
+
+    const outputEditor = ace.edit("outputEditor");
+    outputEditor.setTheme("ace/theme/monokai");
+    outputEditor.session.setMode("ace/mode/lua");
+    outputEditor.setOptions({ fontSize: "14px", readOnly: true });
+
+    // 1. XOR encrypt strings with key 0x10
+    function xorEncryptString(str) {
+      let result = "";
+      for (let i = 0; i < str.length; i++) {
+        result += String.fromCharCode(str.charCodeAt(i) ^ 0x10);
+      }
+      return result;
+    }
+
+    // 2. Split string into char array form {'h','e','l','l','o'}
+    function splitStringToCharArray(str) {
+      const chars = [];
+      for (let ch of str) {
+        chars.push(`'${ch}'`);
+      }
+      return `{${chars.join(",")}}`;
+    }
+
+    // 3. Hex escape string e.g. \x41\x42\x43
+    function hexEscapeString(str) {
+      let result = "";
+      for (let i = 0; i < str.length; i++) {
+        result += "\\x" + str.charCodeAt(i).toString(16).padStart(2, '0');
+      }
+      return result;
+    }
+
+    // 4. Generate junk math functions to add noise
+    function generateJunkFunctions(count = 3) {
+      const junkFuncs = [];
+      for (let i = 0; i < count; i++) {
+        const name = "_" + Math.random().toString(36).substring(2, 8);
+        const code = `local ${name} = function(x, y) return x * y + ${Math.floor(Math.random() * 100)} end\n`;
+        junkFuncs.push(code);
+      }
+      return junkFuncs.join("\n");
+    }
+
+    // 5. Wrap code inside a control flow function and immediately invoke it
+    function wrapInControlFlow(code) {
+      const fnName = "_" + Math.random().toString(36).substring(2, 8);
+      return `local ${fnName} = function()\n${code.split("\n").map(line => "  " + line).join("\n")}\nend\n${fnName}()\n`;
+    }
+
+    // 6. Wrap code inside loadstring + string with XOR encryption
+    function wrapInLoadstringXor(code) {
+      // XOR encrypt whole code
+      const encrypted = xorEncryptString(code);
+      // hex-escape the encrypted string
+      const hexed = hexEscapeString(encrypted);
+      return `loadstring("${hexed}")()`;
+    }
+
+    // Main obfuscation function applying all methods in steps
+    function obfuscate(code) {
+      // Step 1: Wrap original code inside loadstring with XOR+hex escaping
+      let obfuscated = wrapInLoadstringXor(code);
+
+      // Step 2: Wrap the loadstring inside a control flow function wrapper
+      obfuscated = wrapInControlFlow(obfuscated);
+
+      // Step 3: Add junk functions for noise
+      obfuscated = generateJunkFunctions(4) + "\n" + obfuscated;
+
+      // Step 4: Split some strings inside loadstring call into char arrays + table.concat
+      // (This step modifies the obfuscated code to replace some strings with char arrays)
+      // We'll find all strings inside double quotes and randomly choose to split some
+      
+      obfuscated = obfuscated.replace(/"([^"]{3,})"/g, (match, str) => {
+        // 50% chance to split string
+        if (Math.random() < 0.5) {
+          // split string into char array + table.concat
+          return `table.concat(${splitStringToCharArray(str)})`;
+        }
+        return match;
+      });
+
+      return obfuscated;
+    }
+
+    // Button events
+    document.getElementById("obfuscateBtn").addEventListener("click", () => {
+      const inputCode = inputEditor.getValue().trim();
+      if (!inputCode) {
+        alert("Please enter Lua code to obfuscate.");
+        return;
+      }
+      const obfuscatedCode = obfuscate(inputCode);
+      outputEditor.setValue(obfuscatedCode, -1);
+      document.getElementById("downloadBtn").disabled = false;
+    });
+
+    document.getElementById("downloadBtn").addEventListener("click", () => {
+      const content = outputEditor.getValue();
+      if (!content) return;
+      const blob = new Blob([content], { type: "text/plain" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "obfuscated.lua";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+  </script>
+</body>
+</html>

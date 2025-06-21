@@ -78,13 +78,14 @@
                         <li>\x## - Hexadecimal escape sequences</li>
                         <li>\### - Octal escape sequences</li>
                         <li>string.char() - Character code functions</li>
+                        <li>table.concat({...}) - Moonsec v3 string arrays</li>
                         <li>XOR encoded data</li>
                     </ul>
                     <p class="mt-2"><strong>Decoding Functions:</strong></p>
                     <ul class="list-disc list-inside text-sm">
                         <li>v15: Pattern-based hex extraction</li>
                         <li>v28: Bytecode interpretation simulation</li>
-                        <li>v32: Lua script reconstruction</li>
+                        <li>v32: Lua script reconstruction with Moonsec v3 decode</li>
                     </ul>
                     <p class="mt-2"><strong>Error Handling:</strong></p>
                     <p>The tool includes comprehensive error handling for malformed payloads, invalid hex sequences, and bytecode interpretation issues.</p>
@@ -113,7 +114,7 @@
 
     // Try to find a XOR key by brute force (simple heuristic)
     function findXorKey(input) {
-        // Simple regex to detect plausible Lua code or URL start
+        // Regex to detect plausible Lua code or URL start
         const validPatterns = [/^https?:\/\//, /\bfunction\b/, /\bend\b/, /\breturn\b/];
         for (let key = 0; key < 256; key++) {
             try {
@@ -134,31 +135,31 @@
         let deobfuscated = code;
 
         try {
-            // 1. Handle LOL! pattern
+            // 1. LOL! pattern
             if (deobfuscated.startsWith("LOL!")) {
                 logs.push("Detected LOL! pattern, decoding custom payload");
-                deobfuscated = deobfuscated.replace(/LOL!([\w]+)/g, (match, payload) => {
-                    logs.push(`Decoded LOL! payload: ${payload}`);
-                    return `"${payload}"`;
+                deobfuscated = deobfuscated.replace(/LOL!([\w]+)/g, (m, p) => {
+                    logs.push(`Decoded LOL! payload: ${p}`);
+                    return `"${p}"`;
                 });
             }
 
-            // 2. Hexadecimal escape sequences \x##
-            deobfuscated = deobfuscated.replace(/\\x([0-9A-Fa-f]{2})/g, (match, hex) => {
-                const char = String.fromCharCode(parseInt(hex, 16));
-                logs.push(`Decoded hex escape \\x${hex} → ${char}`);
-                return char;
+            // 2. Hex escapes \x##
+            deobfuscated = deobfuscated.replace(/\\x([0-9A-Fa-f]{2})/g, (m, hex) => {
+                const ch = String.fromCharCode(parseInt(hex, 16));
+                logs.push(`Decoded hex escape \\x${hex} → ${ch}`);
+                return ch;
             });
 
-            // 3. Octal escape sequences \###
-            deobfuscated = deobfuscated.replace(/\\([0-7]{1,3})/g, (match, oct) => {
-                const char = String.fromCharCode(parseInt(oct, 8));
-                logs.push(`Decoded octal escape \\${oct} → ${char}`);
-                return char;
+            // 3. Octal escapes \###
+            deobfuscated = deobfuscated.replace(/\\([0-7]{1,3})/g, (m, oct) => {
+                const ch = String.fromCharCode(parseInt(oct, 8));
+                logs.push(`Decoded octal escape \\${oct} → ${ch}`);
+                return ch;
             });
 
             // 4. string.char(...) decoding
-            deobfuscated = deobfuscated.replace(/string\.char\s*\(\s*([0-9,\s]+)\s*\)/g, (match, numbers) => {
+            deobfuscated = deobfuscated.replace(/string\.char\s*\(\s*([0-9,\s]+)\s*\)/g, (m, numbers) => {
                 try {
                     const chars = numbers.split(',').map(n => {
                         const num = parseInt(n.trim(), 10);
@@ -169,18 +170,36 @@
                     return `"${chars}"`;
                 } catch (e) {
                     logs.push(`Failed to decode string.char: ${e.message}`);
-                    return match;
+                    return m;
                 }
             });
 
-            // 5. XOR decoding with brute force if XOR: detected
+            // 5. Moonsec v3: decode table.concat({...}) to string
+            deobfuscated = deobfuscated.replace(/table\.concat\s*\(\s*\{([^}]+)\}\s*(?:,\s*["'].*?["'])?\s*\)/g, (m, content) => {
+                try {
+                    // Parse each element, supporting hex (0x##) and decimal
+                    const bytes = content.split(",").map(s => {
+                        s = s.trim();
+                        if (/^0x/i.test(s)) return parseInt(s, 16);
+                        return parseInt(s, 10);
+                    });
+                    if (bytes.some(isNaN)) throw new Error("Invalid byte in table.concat");
+                    const str = bytes.map(b => String.fromCharCode(b)).join("");
+                    logs.push(`Decoded table.concat(...) → "${str}"`);
+                    return `"${str}"`;
+                } catch (e) {
+                    logs.push(`Failed to decode table.concat: ${e.message}`);
+                    return m;
+                }
+            });
+
+            // 6. XOR decoding with brute force if XOR: detected
             if (deobfuscated.includes("XOR:")) {
                 logs.push("Detected XOR encoded data, attempting brute force key search");
                 const xorMatches = [...deobfuscated.matchAll(/XOR:([A-Za-z0-9+/=]+)/g)];
                 for (const match of xorMatches) {
                     const xorData = match[1];
                     let rawData = xorData;
-                    // Try base64 decode
                     try {
                         rawData = atob(xorData);
                         logs.push(`Base64 decoded XOR data`);
@@ -240,11 +259,11 @@
         }
     }
 
-    // Decode button click event
+    // Decode button handler
     document.getElementById('decodeBtn').addEventListener('click', () => {
         const inputCode = inputEditor.getValue().trim();
         if (!inputCode) {
-            updateLogs(['No input code provided']);
+            updateLogs(["No input code provided"]);
             updateUrls([]);
             outputEditor.setValue('', -1);
             return;

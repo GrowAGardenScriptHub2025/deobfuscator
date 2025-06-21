@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Lua Deobfuscator + Caesar Decode</title>
+<title>Advanced Lua Deobfuscator</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js"></script>
 <style>
@@ -38,7 +38,7 @@
 </head>
 <body class="bg-gray-900 text-white min-h-screen p-6">
   <div class="container mx-auto max-w-6xl">
-    <h1 class="text-3xl font-bold text-center mb-6 animate-slide-in">Lua Deobfuscator + Caesar Decode</h1>
+    <h1 class="text-3xl font-bold text-center mb-6 animate-slide-in">Advanced Lua Deobfuscator</h1>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
       <!-- Input Section -->
       <div class="card animate-slide-in" style="animation-delay: 0.1s;">
@@ -80,12 +80,9 @@
               <li>string.char() - Character code functions</li>
               <li>XOR encoded data</li>
               <li>Caesar cipher (+5 shift) encoded strings (with % for .)</li>
-            </ul>
-            <p class="mt-2"><strong>Decoding Functions:</strong></p>
-            <ul class="list-disc list-inside text-sm">
-              <li>v15: Pattern-based hex extraction</li>
-              <li>v28: Bytecode interpretation simulation</li>
-              <li>v32: Lua script reconstruction + Caesar decode</li>
+              <li>String reversal & rearrangement heuristics</li>
+              <li>Base64 encoded strings</li>
+              <li>URL char substitution fixes (8 → :, % → . , 0 → /)</li>
             </ul>
             <p class="mt-2"><strong>Error Handling:</strong></p>
             <p>The tool includes comprehensive error handling for malformed payloads, invalid hex sequences, and bytecode interpretation issues.</p>
@@ -109,10 +106,7 @@
 
     // XOR decoding function
     function xorDecode(input, key) {
-      // Handle escaped sequences (e.g., \123) by converting to char codes
       let processedInput = input.replace(/\\(\d{1,3})/g, (match, num) => String.fromCharCode(parseInt(num)));
-
-      // XOR each character with the numeric key
       return processedInput.split('').map(char => {
         const charCode = char.charCodeAt(0);
         const xoredCode = charCode ^ key;
@@ -120,9 +114,9 @@
       }).join('');
     }
 
-    // Function to find XOR key by brute force
+    // Find XOR key by brute force
     function findXorKey(input) {
-      const validTextPatterns = [/^http/, /\b\w{3,}\b/]; // Check for URLs or readable words
+      const validTextPatterns = [/^http/, /\b\w{3,}\b/];
       let bestKey = null;
       let bestResult = "";
 
@@ -131,41 +125,103 @@
         if (validTextPatterns.some(pattern => pattern.test(decoded))) {
           bestKey = key;
           bestResult = decoded;
-          break; // Stop at first valid match
+          break;
         }
       }
-
       return { key: bestKey, result: bestResult || "No valid key found" };
     }
 
-    // Caesar decode function (shift letters/digits backward by shift)
+    // Caesar decode (shift letters/digits backward)
     function caesarDecode(str, shift) {
       return str.split('').map(ch => {
         const code = ch.charCodeAt(0);
-        // A-Z
         if (code >= 65 && code <= 90) {
           return String.fromCharCode((code - 65 - shift + 26) % 26 + 65);
         }
-        // a-z
         if (code >= 97 && code <= 122) {
           return String.fromCharCode((code - 97 - shift + 26) % 26 + 97);
         }
-        // 0-9
         if (code >= 48 && code <= 57) {
           return String.fromCharCode((code - 48 - shift + 10) % 10 + 48);
         }
-        // else unchanged
         return ch;
-      }).join('').replace(/%/g, '.'); // Replace % with .
+      }).join('').replace(/%/g, '.');
     }
 
-    // Deobfuscation logic
+    // Reverse string helper
+    function reverseString(str) {
+      return str.split('').reverse().join('');
+    }
+
+    // Base64 decode helper
+    function base64Decode(str) {
+      try {
+        return atob(str);
+      } catch {
+        return null;
+      }
+    }
+
+    // URL char fixes
+    function fixUrlChars(str) {
+      return str.replace(/8/g, ':').replace(/\%/g, '.').replace(/0/g, '/');
+    }
+
+    // Rearrange chunks heuristics
+    function rearrangeChunks(str) {
+      let chunks = str.split(/[.\s]+/);
+      if (chunks.length > 2 && chunks[0].length < chunks[chunks.length - 1].length) {
+        chunks = chunks.reverse();
+      }
+      return chunks.join('.');
+    }
+
+    // Main enhanced deobfuscate function
+    function enhancedDeobfuscate(code) {
+      let logs = [];
+      let decoded = code;
+
+      // Fix URL char substitutions if suspicious chars found
+      if (/[8%\.]/.test(decoded)) {
+        logs.push("Detected suspicious URL char substitutions, fixing...");
+        decoded = fixUrlChars(decoded);
+        logs.push("Fixed URL chars to: " + decoded);
+      }
+
+      // Rearrange chunks if many dots
+      if ((decoded.match(/\./g) || []).length > 2) {
+        const rearranged = rearrangeChunks(decoded);
+        if (rearranged !== decoded) {
+          logs.push("Rearranged chunks from: " + decoded + " to: " + rearranged);
+          decoded = rearranged;
+        }
+      }
+
+      // Reverse string if non-alphanumeric chars detected
+      if (/[^a-zA-Z0-9.:/_%-]/.test(decoded) && /^[\w\.\:\/%\-]+$/.test(reverseString(decoded))) {
+        const reversed = reverseString(decoded);
+        logs.push("Detected possible reversed string, reversed: " + reversed);
+        decoded = reversed;
+      }
+
+      // Base64 decode if looks valid base64
+      if (/^[A-Za-z0-9+/=]+$/.test(decoded) && decoded.length % 4 === 0) {
+        const b64 = base64Decode(decoded);
+        if (b64) {
+          logs.push("Detected base64 string, decoded to: " + b64);
+          decoded = b64;
+        }
+      }
+
+      return { decoded, logs };
+    }
+
+    // Your existing deobfuscation core
     function deobfuscate(code) {
       const logs = [];
       let deobfuscated = code;
 
       try {
-        // Handle LOL! pattern
         if (deobfuscated.startsWith("LOL!")) {
           logs.push("Detected LOL! pattern, initiating custom payload decoding");
           deobfuscated = deobfuscated.replace(/LOL!(\w+)/, (match, payload) => {
@@ -173,26 +229,22 @@
           });
         }
 
-        // Decode hexadecimal escape sequences
         deobfuscated = deobfuscated.replace(/\\x([0-9A-Fa-f]{2})/g, (match, hex) => {
           logs.push(`Decoded hex sequence \\x${hex} to ${String.fromCharCode(parseInt(hex, 16))}`);
           return String.fromCharCode(parseInt(hex, 16));
         });
 
-        // Decode octal escape sequences
         deobfuscated = deobfuscated.replace(/\\([0-7]{1,3})/g, (match, oct) => {
           logs.push(`Decoded octal sequence \\${oct} to ${String.fromCharCode(parseInt(oct, 8))}`);
           return String.fromCharCode(parseInt(oct, 8));
         });
 
-        // Decode string.char(...) sequences (simple)
         deobfuscated = deobfuscated.replace(/string\.char\(([\d,\s]+)\)/g, (match, nums) => {
           const chars = nums.split(',').map(n => String.fromCharCode(parseInt(n.trim()))).join('');
           logs.push(`Decoded string.char(...) to "${chars}"`);
           return chars;
         });
 
-        // XOR decoding with key search if "XOR:" is detected
         if (deobfuscated.includes("XOR:")) {
           logs.push("Detected XOR encoded data, attempting to find key");
           const xorMatch = deobfuscated.match(/XOR:([\w\\]+)/);
@@ -208,21 +260,24 @@
           }
         }
 
-        // Caesar cipher +5 decoding detection (simple heuristic)
-        // Check if code has common caesar-encoded substrings:
-        const caesarIndicators = ["mnuux", "numjw", "tqxxj"]; // sample encoded words from example
+        // Detect Caesar encoded strings (heuristic example)
+        const caesarIndicators = ["mnuux", "numjw", "tqxxj"];
         if (caesarIndicators.some(ind => deobfuscated.includes(ind))) {
           logs.push("Detected Caesar +5 encoded string, decoding");
-          // Attempt to decode all % replaced with .
           deobfuscated = caesarDecode(deobfuscated, 5);
           logs.push("Caesar decoding applied (+5 shift, %→.)");
         }
+
+        // Run enhanced decoding step
+        const enhanced = enhancedDeobfuscate(deobfuscated);
+        logs.push(...enhanced.logs);
+        deobfuscated = enhanced.decoded;
 
         // Extract URLs
         const urlRegex = /https?:\/\/[^\s'"]+/g;
         const urls = deobfuscated.match(urlRegex) || [];
 
-        // Format code (basic indent)
+        // Basic formatting
         const lines = deobfuscated.split("\n");
         let indentLevel = 0;
         deobfuscated = lines.map(line => {
@@ -238,24 +293,23 @@
       } catch (e) {
         logs.push(`Error during deobfuscation: ${e.message}`);
       }
-
       return { deobfuscated, logs, urls: [] };
     }
 
-    // Update logs
+    // Update logs UI
     function updateLogs(logs) {
       const logsDiv = document.getElementById("logs");
       logsDiv.innerHTML = logs.length ? logs.map(log => `<div class="log-entry p-1">${log}</div>`).join("") : "<div class='p-1 text-gray-500'>No decoding steps yet. Enter a payload and click decode.</div>";
       logsDiv.scrollTop = logsDiv.scrollHeight;
     }
 
-    // Update URLs
+    // Update URLs UI
     function updateUrls(urls) {
       const urlList = document.getElementById("urlList");
       urlList.innerHTML = urls.length ? urls.map(url => `<div class="p-1"><a href="${url}" target="_blank" class="text-blue-400 hover:underline">${url}</a></div>`).join("") : "<div class='p-1 text-gray-500'>No URLs extracted.</div>";
     }
 
-    // Decode button click handler
+    // Button handler
     document.getElementById("decodeBtn").addEventListener("click", () => {
       const inputCode = inputEditor.getValue().trim();
       if (!inputCode) {

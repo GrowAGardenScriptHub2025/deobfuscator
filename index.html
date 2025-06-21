@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lua Deobfuscator</title>
+    <title>Lua Deobfuscator Pro</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
         body {
-            background-color: #1a202c;
-            color: #e2e8f0;
+            background-color: #0f172a;
+            color: #f8fafc;
             font-family: 'Inter', sans-serif;
         }
         .container {
@@ -17,20 +17,16 @@
             padding: 20px;
         }
         .editor {
-            background-color: #2d3748;
+            background-color: #1e293b;
             border-radius: 8px;
             padding: 15px;
             height: 500px;
             resize: none;
             width: 100%;
-            color: #e2e8f0;
-        }
-        .editor:focus {
-            outline: none;
-            ring: 2px solid #4a90e2;
+            color: #f8fafc;
         }
         .button {
-            background-color: #4a90e2;
+            background-color: #3b82f6;
             color: white;
             padding: 10px 20px;
             border-radius: 5px;
@@ -38,7 +34,7 @@
             transition: background-color 0.3s;
         }
         .button:hover {
-            background-color: #357abd;
+            background-color: #2563eb;
         }
         .tab {
             padding: 10px 20px;
@@ -46,11 +42,11 @@
             border-bottom: 2px solid transparent;
         }
         .tab.active {
-            border-bottom: 2px solid #4a90e2;
-            color: #4a90e2;
+            border-bottom: 2px solid #3b82f6;
+            color: #3b82f6;
         }
         .log {
-            background-color: #2d3748;
+            background-color: #1e293b;
             padding: 15px;
             border-radius: 8px;
             max-height: 200px;
@@ -59,9 +55,9 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1 class="text-3xl font-bold mb-6">Lua Deobfuscator</h1>
-        
+    <div class="container animate-fade-in">
+        <h1 class="text-4xl font-extrabold mb-6">🔥 Lua Deobfuscator Pro 🔍</h1>
+
         <div class="flex mb-4">
             <div class="tab active" onclick="switchTab('input')">Input</div>
             <div class="tab" onclick="switchTab('output')">Output</div>
@@ -81,7 +77,7 @@
             <button class="button" onclick="copyOutput()">Copy to Clipboard</button>
         </div>
         <div id="logs-tab" class="tab-content hidden">
-            <div id="logs" class="log"></div>
+            <div id="logs" class="log text-sm font-mono"></div>
         </div>
     </div>
 
@@ -103,47 +99,67 @@
             document.getElementById('inputCode').value = '';
             document.getElementById('outputCode').value = '';
             document.getElementById('logs').innerHTML = '';
-            log('Input and output cleared.');
+            log('Cleared input, output and logs.');
         }
 
         function copyOutput() {
             const output = document.getElementById('outputCode');
-            output.select();
-            document.execCommand('copy');
-            log('Output copied to clipboard.');
+            navigator.clipboard.writeText(output.value).then(() => log('Output copied to clipboard.'));
         }
 
         function loadSample() {
             const sample = `local _=(function()return(function(...)local t={...}for i,v in ipairs(t)do t[i]=v*2 end return table.concat(t,",")end)(1,2,3,4,5)end)();print(_);`;
             document.getElementById('inputCode').value = sample;
-            log('Sample code loaded.');
+            log('Loaded sample obfuscated Lua code.');
+        }
+
+        function beautifyLua(code) {
+            return code
+                .replace(/;/g, ';
+')
+                .replace(/{/g, '{
+')
+                .replace(/}/g, '
+}')
+                .replace(/\s+/g, ' ')
+                .replace(/\)end/g, ') end')
+                .replace(/end\)\(\);/g, 'end')
+                .trim();
         }
 
         function deobfuscate() {
             const input = document.getElementById('inputCode').value;
-            if (!input) {
-                log('Error: No input code provided.');
-                return;
-            }
+            if (!input) return log('❌ No code to deobfuscate.');
 
-            log('Starting deobfuscation...');
+            log('🚀 Deobfuscation started...');
             let output = input;
 
             try {
-                // Basic deobfuscation steps
-                output = output.replace(/\s+/g, ' ').trim(); // Normalize whitespace
-                output = output.replace(/local _=(function\(\).*?end\)\(\);/, ''); // Remove wrapper IIFE
-                output = output.replace(/local t={...}/, 'local t = {...}'); // Normalize table declaration
-                output = output.replace(/table\.concat\((.*?),\s*"(.*?)"\)/, 'table.concat($1, "$2")'); // Normalize table.concat
+                output = output.replace(/local _=\(function\(\)[\s\S]*?end\)\(\);/, '');
+                output = output.replace(/local t=\{\.\.\.}/g, 'local t = {...}');
+                output = output.replace(/table\.concat\((.*?)\)/g, function(match, args) {
+                    return 'table.concat(' + args.replace(/\s+/g, '') + ')';
+                });
 
-                // Beautify code
-                output = output.replace(/;/g, ';\n').replace(/{/g, '{\n').replace(/}/g, '\n}');
+                output = output.replace(/(["'])([A-Za-z0-9+/=]{20,})(["'])/g, function(match, quoteStart, content, quoteEnd) {
+                    try {
+                        const decoded = atob(content);
+                        return quoteStart + decoded + quoteEnd;
+                    } catch {
+                        return match;
+                    }
+                });
+
+                output = output.replace(/if .* then return end/g, '-- removed fake condition');
+                output = output.replace(/function \w+\(\) ?-- dummy[\s\S]*?end/g, '');
+                output = output.replace(/\n+/g, '\n').replace(/\s{2,}/g, ' ');
+                output = beautifyLua(output);
 
                 document.getElementById('outputCode').value = output;
-                log('Deobfuscation completed successfully.');
+                log('✅ Deobfuscation successful!');
                 switchTab('output');
             } catch (e) {
-                log(`Error during deobfuscation: ${e.message}`);
+                log(`❌ Error: ${e.message}`);
             }
         }
     </script>

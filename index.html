@@ -1,235 +1,259 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lua Deobfuscator</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js"></script>
-    <style>
-        @keyframes slideIn {
-            from { transform: translateY(20px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-        .animate-slide-in {
-            animation: slideIn 0.5s ease-out forwards;
-        }
-        .editor {
-            height: 300px;
-            width: 100%;
-            border-radius: 0.5rem;
-            border: 1px solid #4b5563;
-            background-color: #1f2937;
-            color: #d1d5db;
-        }
-        .log-entry {
-            transition: all 0.3s ease;
-        }
-        .log-entry:hover {
-            background-color: #374151;
-        }
-        .card {
-            background-color: #2d3748;
-            border-radius: 0.5rem;
-            padding: 1rem;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-    </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lua Deobfuscator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js"></script>
+<style>
+    @keyframes slideIn {
+        from { transform: translateY(20px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+    }
+    .animate-slide-in {
+        animation: slideIn 0.5s ease-out forwards;
+    }
+    .editor {
+        height: 300px;
+        width: 100%;
+        border-radius: 0.5rem;
+        border: 1px solid #4b5563;
+        background-color: #1f2937;
+        color: #d1d5db;
+    }
+    .log-entry {
+        transition: all 0.3s ease;
+    }
+    .log-entry:hover {
+        background-color: #374151;
+    }
+    .card {
+        background-color: #2d3748;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+</style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen p-6">
-    <div class="container mx-auto max-w-6xl">
-        <h1 class="text-3xl font-bold text-center mb-6 animate-slide-in">Lua Deobfuscator</h1>
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <!-- Input Section -->
-            <div class="card animate-slide-in" style="animation-delay: 0.1s;">
-                <h2 class="text-xl font-semibold mb-2">Input Payload</h2>
-                <p class="text-gray-400 mb-4 text-sm">Paste your obfuscated Lua script or encoded payload here</p>
-                <div id="inputEditor" class="editor"></div>
-                <button id="decodeBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg mt-4 w-full transition duration-300 flex items-center justify-center">
-                    <span class="mr-2">🔍</span> Decode Payload
-                </button>
-            </div>
-            <!-- Output Section -->
-            <div class="card animate-slide-in" style="animation-delay: 0.2s;">
-                <h2 class="text-xl font-semibold mb-2">Decoded Output</h2>
-                <p class="text-gray-400 mb-4 text-sm">Reconstructed Lua script will appear here...</p>
-                <div id="outputEditor" class="editor"></div>
-            </div>
+<div class="container mx-auto max-w-6xl">
+    <h1 class="text-3xl font-bold text-center mb-6 animate-slide-in">Lua Deobfuscator</h1>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <!-- Input Section -->
+        <div class="card animate-slide-in" style="animation-delay: 0.1s;">
+            <h2 class="text-xl font-semibold mb-2">Input Payload</h2>
+            <p class="text-gray-400 mb-4 text-sm">Paste your obfuscated Lua script or encoded payload here</p>
+            <div id="inputEditor" class="editor"></div>
+            <button id="decodeBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg mt-4 w-full transition duration-300 flex items-center justify-center">
+                <span class="mr-2">🔍</span> Decode Payload
+            </button>
         </div>
-        <!-- Decoding Process Section -->
-        <div class="card animate-slide-in" style="animation-delay: 0.3s;">
-            <h2 class="text-xl font-semibold mb-2">Decoding Process</h2>
-            <p class="text-gray-400 mb-4 text-sm">Step-by-step breakdown of the decoding process</p>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                    <h3 class="text-md font-medium mb-2">Decoding Steps</h3>
-                    <div id="logs" class="bg-gray-800 p-2 rounded-lg h-32 overflow-y-auto text-sm"></div>
-                </div>
-                <div>
-                    <h3 class="text-md font-medium mb-2">Extracted URLs</h3>
-                    <div id="urlList" class="bg-gray-800 p-2 rounded-lg h-32 overflow-y-auto text-sm text-gray-400"></div>
-                </div>
-                <div>
-                    <h3 class="text-md font-medium mb-2">Tool Information</h3>
-                    <div class="bg-gray-800 p-2 rounded-lg h-32 overflow-y-auto text-sm text-gray-400">
-                        <p><strong>Supported Patterns:</strong></p>
-                        <ul class="list-disc list-inside text-sm">
-                            <li>LOL! ... - Custom encoded payloads</li>
-                            <li>\x## - Hexadecimal escape sequences</li>
-                            <li>\### - Octal escape sequences</li>
-                            <li>string.char() - Character code functions</li>
-                            <li>XOR encoded data</li>
-                        </ul>
-                        <p class="mt-2"><strong>Decoding Functions:</strong></p>
-                        <ul class="list-disc list-inside text-sm">
-                            <li>v15: Pattern-based hex extraction</li>
-                            <li>v28: Bytecode interpretation simulation</li>
-                            <li>v32: Lua script reconstruction</li>
-                        </ul>
-                        <p class="mt-2"><strong>Error Handling:</strong></p>
-                        <p>The tool includes comprehensive error handling for malformed payloads, invalid hex sequences, and bytecode interpretation issues.</p>
-                    </div>
+        <!-- Output Section -->
+        <div class="card animate-slide-in" style="animation-delay: 0.2s;">
+            <h2 class="text-xl font-semibold mb-2">Decoded Output</h2>
+            <p class="text-gray-400 mb-4 text-sm">Reconstructed Lua script will appear here...</p>
+            <div id="outputEditor" class="editor"></div>
+        </div>
+    </div>
+    <!-- Decoding Process Section -->
+    <div class="card animate-slide-in" style="animation-delay: 0.3s;">
+        <h2 class="text-xl font-semibold mb-2">Decoding Process</h2>
+        <p class="text-gray-400 mb-4 text-sm">Step-by-step breakdown of the decoding process</p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <h3 class="text-md font-medium mb-2">Decoding Steps</h3>
+                <div id="logs" class="bg-gray-800 p-2 rounded-lg h-32 overflow-y-auto text-sm"></div>
+            </div>
+            <div>
+                <h3 class="text-md font-medium mb-2">Extracted URLs</h3>
+                <div id="urlList" class="bg-gray-800 p-2 rounded-lg h-32 overflow-y-auto text-sm text-gray-400"></div>
+            </div>
+            <div>
+                <h3 class="text-md font-medium mb-2">Tool Information</h3>
+                <div class="bg-gray-800 p-2 rounded-lg h-32 overflow-y-auto text-sm text-gray-400">
+                    <p><strong>Supported Patterns:</strong></p>
+                    <ul class="list-disc list-inside text-sm">
+                        <li>LOL! ... - Custom encoded payloads</li>
+                        <li>\x## - Hexadecimal escape sequences</li>
+                        <li>\### - Octal escape sequences</li>
+                        <li>string.char() - Character code functions</li>
+                        <li>XOR encoded data</li>
+                    </ul>
+                    <p class="mt-2"><strong>Decoding Functions:</strong></p>
+                    <ul class="list-disc list-inside text-sm">
+                        <li>v15: Pattern-based hex extraction</li>
+                        <li>v28: Bytecode interpretation simulation</li>
+                        <li>v32: Lua script reconstruction</li>
+                    </ul>
+                    <p class="mt-2"><strong>Error Handling:</strong></p>
+                    <p>The tool includes comprehensive error handling for malformed payloads, invalid hex sequences, and bytecode interpretation issues.</p>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
-    <script>
-        // Initialize ACE editors
-        const inputEditor = ace.edit("inputEditor");
-        inputEditor.setTheme("ace/theme/monokai");
-        inputEditor.session.setMode("ace/mode/lua");
-        inputEditor.setOptions({ fontSize: "14px" });
+<script>
+    // Initialize ACE editors
+    const inputEditor = ace.edit("inputEditor");
+    inputEditor.setTheme("ace/theme/monokai");
+    inputEditor.session.setMode("ace/mode/lua");
+    inputEditor.setOptions({ fontSize: "14px" });
 
-        const outputEditor = ace.edit("outputEditor");
-        outputEditor.setTheme("ace/theme/monokai");
-        outputEditor.session.setMode("ace/mode/lua");
-        outputEditor.setOptions({ fontSize: "14px", readOnly: true });
+    const outputEditor = ace.edit("outputEditor");
+    outputEditor.setTheme("ace/theme/monokai");
+    outputEditor.session.setMode("ace/mode/lua");
+    outputEditor.setOptions({ fontSize: "14px", readOnly: true });
 
-        // XOR decoding function
-        function xorDecode(input, key) {
-            // Handle escaped sequences (e.g., \123) by converting to char codes
-            let processedInput = input.replace(/\\(\d{1,3})/g, (match, num) => String.fromCharCode(parseInt(num)));
+    // XOR decode helper
+    function xorDecode(input, key) {
+        return input.split('').map(c => String.fromCharCode(c.charCodeAt(0) ^ key)).join('');
+    }
 
-            // XOR each character with the numeric key
-            return processedInput.split('').map(char => {
-                const charCode = char.charCodeAt(0);
-                const xoredCode = charCode ^ key;
-                return String.fromCharCode(xoredCode);
-            }).join('');
-        }
-
-        // Function to find XOR key by brute force
-        function findXorKey(input) {
-            const validTextPatterns = [/^http/, /\b\w{3,}\b/]; // Check for URLs or readable words
-            let bestKey = null;
-            let bestResult = "";
-
-            for (let key = 0; key <= 255; key++) {
+    // Try to find a XOR key by brute force (simple heuristic)
+    function findXorKey(input) {
+        // Simple regex to detect plausible Lua code or URL start
+        const validPatterns = [/^https?:\/\//, /\bfunction\b/, /\bend\b/, /\breturn\b/];
+        for (let key = 0; key < 256; key++) {
+            try {
                 const decoded = xorDecode(input, key);
-                if (validTextPatterns.some(pattern => pattern.test(decoded))) {
-                    bestKey = key;
-                    bestResult = decoded;
-                    break; // Stop at first valid match
+                if (validPatterns.some(r => r.test(decoded))) {
+                    return { key, result: decoded };
                 }
+            } catch {
+                // ignore errors in decoding
+            }
+        }
+        return { key: null, result: null };
+    }
+
+    // Main deobfuscation function
+    function deobfuscate(code) {
+        const logs = [];
+        let deobfuscated = code;
+
+        try {
+            // 1. Handle LOL! pattern
+            if (deobfuscated.startsWith("LOL!")) {
+                logs.push("Detected LOL! pattern, decoding custom payload");
+                deobfuscated = deobfuscated.replace(/LOL!([\w]+)/g, (match, payload) => {
+                    logs.push(`Decoded LOL! payload: ${payload}`);
+                    return `"${payload}"`;
+                });
             }
 
-            return { key: bestKey, result: bestResult || "No valid key found" };
-        }
+            // 2. Hexadecimal escape sequences \x##
+            deobfuscated = deobfuscated.replace(/\\x([0-9A-Fa-f]{2})/g, (match, hex) => {
+                const char = String.fromCharCode(parseInt(hex, 16));
+                logs.push(`Decoded hex escape \\x${hex} → ${char}`);
+                return char;
+            });
 
-        // Deobfuscation logic
-        function deobfuscate(code) {
-            const logs = [];
-            let deobfuscated = code;
+            // 3. Octal escape sequences \###
+            deobfuscated = deobfuscated.replace(/\\([0-7]{1,3})/g, (match, oct) => {
+                const char = String.fromCharCode(parseInt(oct, 8));
+                logs.push(`Decoded octal escape \\${oct} → ${char}`);
+                return char;
+            });
 
-            try {
-                // Handle LOL! pattern
-                if (deobfuscated.startsWith("LOL!")) {
-                    logs.push("Detected LOL! pattern, initiating custom payload decoding");
-                    deobfuscated = deobfuscated.replace(/LOL!(\w+)/, (match, payload) => {
-                        return `function decoded() return "${payload}" end`;
-                    });
+            // 4. string.char(...) decoding
+            deobfuscated = deobfuscated.replace(/string\.char\s*\(\s*([0-9,\s]+)\s*\)/g, (match, numbers) => {
+                try {
+                    const chars = numbers.split(',').map(n => {
+                        const num = parseInt(n.trim(), 10);
+                        if (isNaN(num)) throw new Error("Invalid number in string.char");
+                        return String.fromCharCode(num);
+                    }).join('');
+                    logs.push(`Decoded string.char(...) → "${chars}"`);
+                    return `"${chars}"`;
+                } catch (e) {
+                    logs.push(`Failed to decode string.char: ${e.message}`);
+                    return match;
                 }
+            });
 
-                // Decode hexadecimal escape sequences
-                deobfuscated = deobfuscated.replace(/\\x([0-9A-Fa-f]{2})/g, (match, hex) => {
-                    logs.push(`Decoded hex sequence \\x${hex} to ${String.fromCharCode(parseInt(hex, 16))}`);
-                    return String.fromCharCode(parseInt(hex, 16));
-                });
-
-                // Decode octal escape sequences
-                deobfuscated = deobfuscated.replace(/\\([0-7]{1,3})/g, (match, oct) => {
-                    logs.push(`Decoded octal sequence \\${oct} to ${String.fromCharCode(parseInt(oct, 8))}`);
-                    return String.fromCharCode(parseInt(oct, 8));
-                });
-
-                // XOR decoding with key search if "XOR:" is detected
-                if (deobfuscated.includes("XOR:")) {
-                    logs.push("Detected XOR encoded data, attempting to find key");
-                    const xorMatch = deobfuscated.match(/XOR:([\w]+)/);
-                    if (xorMatch) {
-                        const xorData = xorMatch[1];
-                        const { key, result } = findXorKey(xorData);
-                        if (key !== null) {
-                            logs.push(`Found XOR key ${key}, decoded "${xorData}" to "${result}"`);
-                            deobfuscated = deobfuscated.replace(/XOR:[\w]+/, result);
-                        } else {
-                            logs.push("No valid XOR key found");
-                        }
+            // 5. XOR decoding with brute force if XOR: detected
+            if (deobfuscated.includes("XOR:")) {
+                logs.push("Detected XOR encoded data, attempting brute force key search");
+                const xorMatches = [...deobfuscated.matchAll(/XOR:([A-Za-z0-9+/=]+)/g)];
+                for (const match of xorMatches) {
+                    const xorData = match[1];
+                    let rawData = xorData;
+                    // Try base64 decode
+                    try {
+                        rawData = atob(xorData);
+                        logs.push(`Base64 decoded XOR data`);
+                    } catch {
+                        logs.push(`XOR data not base64, using raw string`);
+                    }
+                    const { key, result } = findXorKey(rawData);
+                    if (key !== null) {
+                        logs.push(`Found XOR key ${key}, decoded XOR data`);
+                        deobfuscated = deobfuscated.replace(match[0], `"${result}"`);
+                    } else {
+                        logs.push("No valid XOR key found for XOR data");
                     }
                 }
-
-                // Extract URLs
-                const urlRegex = /https?:\/\/[^\s'"]+/g;
-                const urls = deobfuscated.match(urlRegex) || [];
-
-                // Format code
-                const lines = deobfuscated.split("\n");
-                let indentLevel = 0;
-                deobfuscated = lines.map(line => {
-                    line = line.trim();
-                    if (line.match(/end$/)) indentLevel = Math.max(0, indentLevel - 1);
-                    const indented = "  ".repeat(indentLevel) + line;
-                    if (line.match(/do$|then$|function/)) indentLevel++;
-                    return indented;
-                }).join("\n");
-                logs.push("Applied basic code formatting");
-
-                return { deobfuscated, logs, urls };
-            } catch (e) {
-                logs.push(`Error during deobfuscation: ${e.message}`);
             }
 
-            return { deobfuscated, logs, urls: [] };
+            // Extract URLs for display
+            const urlRegex = /https?:\/\/[^\s'"]+/g;
+            const urls = deobfuscated.match(urlRegex) || [];
+
+            // Basic indentation for Lua code
+            const lines = deobfuscated.split('\n');
+            let indentLevel = 0;
+            deobfuscated = lines.map(line => {
+                line = line.trim();
+                if (/^end\b/.test(line)) indentLevel = Math.max(0, indentLevel - 1);
+                const indented = '  '.repeat(indentLevel) + line;
+                if (/\b(do|then|function)\b/.test(line)) indentLevel++;
+                return indented;
+            }).join('\n');
+            logs.push("Applied basic Lua code formatting");
+
+            return { deobfuscated, logs, urls };
+        } catch (e) {
+            logs.push(`Error during deobfuscation: ${e.message}`);
+            return { deobfuscated: code, logs, urls: [] };
         }
+    }
 
-        // Update logs
-        function updateLogs(logs) {
-            const logsDiv = document.getElementById("logs");
-            logsDiv.innerHTML = logs.length ? logs.map(log => `<div class="log-entry p-1">${log}</div>`).join("") : "<div class='p-1 text-gray-500'>No decoding steps yet. Enter a payload and click decode.</div>";
-            logsDiv.scrollTop = logsDiv.scrollHeight;
+    // Helpers to update UI sections
+    function updateLogs(logs) {
+        const logsDiv = document.getElementById('logs');
+        if (logs.length === 0) {
+            logsDiv.innerHTML = "<div class='p-1 text-gray-500'>No decoding steps yet. Enter a payload and click decode.</div>";
+        } else {
+            logsDiv.innerHTML = logs.map(log => `<div class="log-entry p-1">${log}</div>`).join('');
         }
+        logsDiv.scrollTop = logsDiv.scrollHeight;
+    }
 
-        // Update URLs
-        function updateUrls(urls) {
-            const urlList = document.getElementById("urlList");
-            urlList.innerHTML = urls.length ? urls.map(url => `<div class="p-1"><a href="${url}" target="_blank" class="text-blue-400 hover:underline">${url}</a></div>`).join("") : "<div class='p-1 text-gray-500'>No URLs extracted.</div>";
+    function updateUrls(urls) {
+        const urlList = document.getElementById('urlList');
+        if (urls.length === 0) {
+            urlList.innerHTML = "<div class='p-1 text-gray-500'>No URLs extracted.</div>";
+        } else {
+            urlList.innerHTML = urls.map(url => `<div class="p-1"><a href="${url}" target="_blank" class="text-blue-400 hover:underline">${url}</a></div>`).join('');
         }
+    }
 
-        // Decode button click handler
-        document.getElementById("decodeBtn").addEventListener("click", () => {
-            const inputCode = inputEditor.getValue().trim();
-            if (!inputCode) {
-                updateLogs(["No input code provided"]);
-                updateUrls([]);
-                return;
-            }
-
-            const { deobfuscated, logs, urls } = deobfuscate(inputCode);
-            outputEditor.setValue(deobfuscated, -1);
-            updateLogs(logs);
-            updateUrls(urls);
-        });
-    </script>
+    // Decode button click event
+    document.getElementById('decodeBtn').addEventListener('click', () => {
+        const inputCode = inputEditor.getValue().trim();
+        if (!inputCode) {
+            updateLogs(['No input code provided']);
+            updateUrls([]);
+            outputEditor.setValue('', -1);
+            return;
+        }
+        const { deobfuscated, logs, urls } = deobfuscate(inputCode);
+        outputEditor.setValue(deobfuscated, -1);
+        updateLogs(logs);
+        updateUrls(urls);
+    });
+</script>
 </body>
 </html>
